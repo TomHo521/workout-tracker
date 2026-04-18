@@ -63,3 +63,48 @@ class PainLog(Base):
     score = Column(Integer, default=0)      # 0-10
     notes = Column(String, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IntakeSession(Base):
+    __tablename__ = "intake_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    profile_id = Column(Integer, ForeignKey("health_profiles.id"), nullable=True)
+    status = Column(String, default="in_progress")  # in_progress|complete|abandoned|escalated
+    model_used = Column(String, default="llama3.1:8b")
+    prompt_version = Column(String, default="v1")
+    disclaimer_accepted_at = Column(DateTime, nullable=True)
+    profile_draft = Column(JSON, default=dict)       # live accumulating draft
+    red_flags = Column(JSON, default=list)           # [{reason, area, at}]
+    completeness_score = Column(Float, default=0.0)  # 0..1 — how much of required is filled
+    agent_ready_to_finalize = Column(Integer, default=0)  # 0/1; "complete" per agent
+    started_at = Column(DateTime, default=datetime.utcnow)
+    finalized_at = Column(DateTime, nullable=True)
+
+
+class IntakeMessage(Base):
+    __tablename__ = "intake_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("intake_sessions.id"), nullable=False)
+    role = Column(String, nullable=False)  # user|assistant|system|tool
+    content = Column(String, default="")
+    tool_name = Column(String, default="")
+    tool_args = Column(JSON, default=dict)
+    tool_result = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ProgramDraft(Base):
+    __tablename__ = "program_drafts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    profile_id = Column(Integer, ForeignKey("health_profiles.id"), nullable=False)
+    source_intake_session_id = Column(Integer, ForeignKey("intake_sessions.id"), nullable=True)
+    status = Column(String, default="pending")   # pending|approved|rejected
+    payload = Column(JSON, default=dict)         # {split, days:[{label,focus,exercises:[...]}]}
+    rationale = Column(JSON, default=dict)       # {exercise_name: "why picked"}
+    validator_report = Column(JSON, default=dict)
+    reject_reason = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    approved_at = Column(DateTime, nullable=True)

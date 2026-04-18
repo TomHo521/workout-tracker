@@ -59,6 +59,54 @@ class PainLogOut(BaseModel):
         from_attributes = True
 
 
+class IntakeMessageOut(BaseModel):
+    id: int
+    session_id: int
+    role: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class IntakeSessionOut(BaseModel):
+    id: int
+    profile_id: Optional[int]
+    status: str
+    model_used: str
+    prompt_version: str
+    profile_draft: dict
+    red_flags: list
+    completeness_score: float
+    agent_ready_to_finalize: int
+    started_at: datetime
+    finalized_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class IntakeMessageIn(BaseModel):
+    content: str
+
+
+class ProgramDraftOut(BaseModel):
+    id: int
+    profile_id: int
+    source_intake_session_id: Optional[int]
+    status: str
+    payload: dict
+    rationale: dict
+    validator_report: dict
+    reject_reason: str
+    created_at: datetime
+    approved_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 class ProgramDay(BaseModel):
     label: str
     focus: str

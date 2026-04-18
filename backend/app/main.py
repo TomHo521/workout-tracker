@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from .database import Base, engine
 from .migrate import run_migrations
 from .seed import seed_exercises
-from .routers import profile, program, sessions, exercises, pain, stats, review
+from .routers import profile, program, sessions, exercises, pain, stats, review, intake, trainer
 
 run_migrations()
 Base.metadata.create_all(bind=engine)
@@ -29,6 +29,8 @@ app.include_router(exercises.router, prefix="/api")
 app.include_router(pain.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(review.router, prefix="/api")
+app.include_router(intake.router, prefix="/api")
+app.include_router(trainer.router, prefix="/api")
 
 
 @app.get("/api/health")

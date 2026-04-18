@@ -218,6 +218,53 @@ button.danger {
 .pain-score[data-level="high"] { background: #2a0f10; color: var(--danger); }
 .pain-row button { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: .2rem .5rem; cursor: pointer; }
 
+/* ======== Onboarding chat ======== */
+.onb-layout {
+  display: grid; grid-template-columns: 1fr 300px; gap: 1rem;
+}
+@media (max-width: 760px) { .onb-layout { grid-template-columns: 1fr; } }
+
+.onb-chat #onb-messages {
+  min-height: 280px; max-height: 420px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: .4rem;
+  padding: .25rem; margin-bottom: .5rem;
+}
+.msg { max-width: 85%; padding: .55rem .75rem; border-radius: 12px; line-height: 1.35; font-size: .95rem; }
+.msg.user { align-self: flex-end; background: #1f2937; color: var(--ink); border-bottom-right-radius: 4px; }
+.msg.assistant { align-self: flex-start; background: #0f1f18; color: var(--ink); border: 1px solid #134e32; border-bottom-left-radius: 4px; }
+.msg.typing { font-style: italic; color: var(--muted); background: transparent; border: 0; }
+
+.onb-input { display: flex; gap: .5rem; }
+.onb-input input { flex: 1; }
+.onb-input button { margin-top: 0; }
+
+.onb-preview h3 { margin-top: 0; }
+.onb-preview .field { padding: .35rem 0; border-bottom: 1px dashed var(--border); font-size: .9rem; }
+.onb-preview .field .k { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+.onb-preview .field .v { color: var(--ink); }
+.onb-preview .field .v.empty { color: #666; font-style: italic; }
+.onb-preview .progress {
+  height: 6px; background: #0b0e13; border: 1px solid var(--border);
+  border-radius: 999px; overflow: hidden; margin-top: .6rem;
+}
+.onb-preview .progress > div { height: 100%; background: var(--accent); transition: width .3s ease; }
+
+/* ======== Program draft review ======== */
+.draft-card { border: 1px solid var(--border); border-radius: 8px; padding: .9rem; margin-bottom: .6rem; background: #10131a; }
+.draft-card.approved { border-color: var(--accent); }
+.draft-card.rejected { border-color: var(--danger); opacity: .8; }
+.draft-header { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .4rem; }
+.draft-meta { color: var(--muted); font-size: .8rem; }
+.draft-actions { display: flex; gap: .4rem; }
+.draft-actions button { padding: .35rem .75rem; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--ink); cursor: pointer; }
+.draft-actions .approve { border-color: var(--accent); color: var(--accent); }
+.draft-actions .reject { border-color: var(--danger); color: var(--danger); }
+.draft-day { margin: .4rem 0; padding: .4rem; border-left: 2px solid var(--border); }
+.draft-day strong { color: var(--ink); }
+.draft-day .ex { display: flex; justify-content: space-between; gap: .5rem; padding: .25rem 0; font-size: .9rem; }
+.draft-day .ex small { color: var(--muted); }
+.violations { color: var(--danger); font-size: .85rem; }
+
 /* ======== Modal ======== */
 .overlay {
   position: fixed; inset: 0;

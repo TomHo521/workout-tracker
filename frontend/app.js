@@ -1,5 +1,6 @@
 const API = "/api";
 const LS_DISCLAIMER = "wt.disclaimer.v1";
+const LS_INTAKE = "wt.intake.session_id";
 
 const state = {
   profile: null,
@@ -636,6 +637,227 @@ async function renderReview() {
   });
 }
 
+// ---------- Onboarding (intake chat) ----------
+const onbState = { sessionId: null, draft: {}, status: "in_progress", ready: false };
+
+async function renderOnboarding() {
+  const tpl = $("#tpl-onboarding").content.cloneNode(true);
+  $("#app").replaceChildren(tpl);
+  $("#onb-new").addEventListener("click", startIntake);
+  $("#onb-send").addEventListener("click", sendIntakeMessage);
+  $("#onb-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); sendIntakeMessage(); }
+  });
+  $("#onb-finalize").addEventListener("click", finalizeIntake);
+
+  const resumeId = Number(localStorage.getItem(LS_INTAKE) || 0);
+  if (resumeId) {
+    try {
+      const s = await api(`/intake/${resumeId}`);
+      if (s.status === "in_progress" || s.status === "escalated") {
+        await hydrateIntake(s);
+        return;
+      }
+    } catch {}
+  }
+  $("#onb-session-info").textContent = "No active intake — click 'Start new intake'.";
+}
+
+async function startIntake() {
+  const s = await api("/intake/start", { method: "POST" });
+  localStorage.setItem(LS_INTAKE, String(s.id));
+  await hydrateIntake(s);
+}
+
+async function hydrateIntake(s) {
+  onbState.sessionId = s.id;
+  onbState.draft = s.profile_draft || {};
+  onbState.status = s.status;
+  onbState.ready = !!s.agent_ready_to_finalize;
+  $("#onb-body").classList.remove("hidden");
+  $("#onb-session-info").textContent = `Session #${s.id} · ${s.status}`;
+  const msgs = await api(`/intake/${s.id}/messages`);
+  const host = $("#onb-messages");
+  host.innerHTML = "";
+  msgs.forEach(m => host.appendChild(messageBubble(m.role, m.content)));
+  host.scrollTop = host.scrollHeight;
+  renderDraft();
+  handleRedFlags(s.red_flags || []);
+  updateFinalizeButton();
+}
+
+function messageBubble(role, content) {
+  const b = document.createElement("div");
+  b.className = `msg ${role === "user" ? "user" : "assistant"}`;
+  b.textContent = content;
+  return b;
+}
+
+async function sendIntakeMessage() {
+  if (!onbState.sessionId) return;
+  const input = $("#onb-input");
+  const text = input.value.trim();
+  if (!text) return;
+  const host = $("#onb-messages");
+  host.appendChild(messageBubble("user", text));
+  input.value = "";
+  const typing = el(`<div class="msg typing">coach is thinking…</div>`);
+  host.appendChild(typing);
+  host.scrollTop = host.scrollHeight;
+
+  try {
+    const r = await api(`/intake/${onbState.sessionId}/message`, {
+      method: "POST",
+      body: JSON.stringify({ content: text }),
+    });
+    typing.remove();
+    host.appendChild(messageBubble("assistant", r.assistant_message));
+    host.scrollTop = host.scrollHeight;
+    onbState.draft = r.profile_draft || {};
+    onbState.status = r.status;
+    onbState.ready = !!r.agent_ready_to_finalize;
+    renderDraft(r.completeness_score);
+    handleRedFlags(r.red_flags || []);
+    updateFinalizeButton();
+    if (r.warnings?.length) $("#onb-status").textContent = `warnings: ${r.warnings.join("; ")}`;
+    else $("#onb-status").textContent = "";
+  } catch (e) {
+    typing.remove();
+    host.appendChild(el(`<div class="msg assistant err">Failed: ${e.message}</div>`));
+  }
+}
+
+function handleRedFlags(flags) {
+  const box = $("#onb-redflag");
+  if (!flags.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.classList.remove("hidden");
+  box.innerHTML = `<strong>Please consult a healthcare professional before continuing.</strong><ul>${
+    flags.map(f => `<li>${f.reason}${f.area ? ` (${f.area})` : ""}</li>`).join("")
+  }</ul>`;
+}
+
+function renderDraft(scoreHint) {
+  const d = onbState.draft || {};
+  const rows = [
+    ["name", d.name], ["age", d.age], ["sex", d.sex],
+    ["fitness_level", d.fitness_level], ["goals", d.goals],
+    ["injuries", (d.injuries || []).join(", ")],
+    ["equipment", (d.equipment || []).join(", ")],
+    ["conditions", (d.conditions || []).join(", ")],
+    ["height_cm", d.height_cm], ["weight_kg", d.weight_kg],
+    ["notes", d.notes],
+  ];
+  const host = $("#onb-draft");
+  host.innerHTML = rows.map(([k, v]) => {
+    const has = v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+    return `<div class="field"><div class="k">${k}</div><div class="v ${has ? "" : "empty"}">${has ? String(v) : "—"}</div></div>`;
+  }).join("");
+  // required-field progress
+  const required = ["fitness_level", "goals", "injuries", "equipment"];
+  const done = required.filter(f => {
+    const v = d[f];
+    return Array.isArray(v) ? true && d[f] !== undefined : !!v;
+  }).length;
+  // injuries as empty list still counts only if explicitly set — approximate from scoreHint when given
+  const pct = scoreHint !== undefined ? Math.round(scoreHint * 100) : Math.round((done / required.length) * 100);
+  $("#onb-progress").innerHTML = `<div class="muted" style="font-size:.8rem;margin-top:.6rem;">required fields: ${pct}%</div><div class="progress"><div style="width:${pct}%"></div></div>`;
+}
+
+function updateFinalizeButton() {
+  const btn = $("#onb-finalize");
+  const d = onbState.draft || {};
+  const hasAll = ["fitness_level", "goals", "injuries", "equipment"].every(f => d[f] !== undefined);
+  const ok = onbState.status !== "escalated" && (hasAll || onbState.ready);
+  btn.classList.toggle("hidden", !ok);
+}
+
+async function finalizeIntake() {
+  const btn = $("#onb-finalize");
+  btn.disabled = true; btn.textContent = "Finalizing & proposing…";
+  try {
+    const profile = await api(`/intake/${onbState.sessionId}/finalize`, { method: "POST" });
+    state.profile = profile;
+    setIndicator();
+    const draft = await api(`/trainer/propose`, {
+      method: "POST",
+      body: JSON.stringify({ profile_id: profile.id, intake_session_id: onbState.sessionId }),
+    });
+    localStorage.removeItem(LS_INTAKE);
+    alert(`Profile created (id ${profile.id}). Program draft #${draft.id} is ready — review it in the Drafts tab.`);
+    switchView("drafts");
+  } catch (e) {
+    alert(`Finalize failed: ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = "Finalize profile & propose program";
+  }
+}
+
+// ---------- Program drafts ----------
+async function renderDrafts() {
+  if (!state.profile) { switchView("onboarding"); return; }
+  const tpl = $("#tpl-drafts").content.cloneNode(true);
+  $("#app").replaceChildren(tpl);
+  await loadDrafts();
+}
+
+async function loadDrafts() {
+  const list = $("#drafts-list");
+  list.innerHTML = "";
+  const drafts = await api(`/trainer/drafts?profile_id=${state.profile.id}`);
+  if (!drafts.length) {
+    list.innerHTML = `<p class='muted'>No drafts yet. Finish an intake to generate one, or <a href="#" id="force-propose">propose one from your current profile</a>.</p>`;
+    $("#force-propose")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await api(`/trainer/propose`, { method: "POST", body: JSON.stringify({ profile_id: state.profile.id }) });
+      await loadDrafts();
+    });
+    return;
+  }
+  drafts.forEach(d => list.appendChild(draftCard(d)));
+}
+
+function draftCard(d) {
+  const vr = d.validator_report || {};
+  const violations = vr.violations || [];
+  const card = el(`<div class="draft-card ${d.status}"></div>`);
+  const head = el(`
+    <div class="draft-header">
+      <div>
+        <strong>Draft #${d.id}</strong>
+        <span class="pill">${d.status}</span>
+        ${vr.ok ? '<span class="pill" style="color:var(--accent)">safety ✓</span>' : '<span class="pill" style="color:var(--danger)">safety ✗</span>'}
+      </div>
+      <div class="draft-actions"></div>
+    </div>
+    <div class="draft-meta">created ${d.created_at}${d.approved_at ? ` · approved ${d.approved_at}` : ""}${d.source_intake_session_id ? ` · from intake #${d.source_intake_session_id}` : ""}</div>
+  `);
+  card.appendChild(head);
+  const actions = card.querySelector(".draft-actions");
+  if (d.status === "pending") {
+    const a = el(`<button class="approve" type="button">Approve</button>`);
+    a.addEventListener("click", async () => { await api(`/trainer/drafts/${d.id}/approve`, { method: "POST" }); await loadDrafts(); });
+    const r = el(`<button class="reject" type="button">Reject</button>`);
+    r.addEventListener("click", async () => { await api(`/trainer/drafts/${d.id}/reject`, { method: "POST" }); await loadDrafts(); });
+    actions.append(a, r);
+  }
+
+  if (violations.length) {
+    const v = el(`<div class="violations"><strong>Violations:</strong><ul>${violations.map(x => `<li>${x.exercise} — ${x.reason}</li>`).join("")}</ul></div>`);
+    card.appendChild(v);
+  }
+
+  (d.payload?.days || []).forEach(day => {
+    const dayEl = el(`<div class="draft-day"><strong>${day.label}</strong> <small class="muted">${day.focus}</small></div>`);
+    (day.exercises || []).forEach(ex => {
+      const why = (d.rationale || {})[ex.name] || "";
+      dayEl.appendChild(el(`<div class="ex"><span>${ex.name} <small>· ${ex.muscle_group} · ${ex.equipment}</small></span><small>${why}</small></div>`));
+    });
+    card.appendChild(dayEl);
+  });
+
+  return card;
+}
+
 // ---------- Settings ----------
 function renderSettings() {
   if (!state.profile) { switchView("profile"); return; }
@@ -665,8 +887,9 @@ function switchView(v) {
   state.view = v;
   $$("header nav button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
   const fn = ({
-    profile: renderProfile, today: renderToday, pain: renderPain,
-    history: renderHistory, review: renderReview, settings: renderSettings,
+    onboarding: renderOnboarding, profile: renderProfile, today: renderToday,
+    pain: renderPain, history: renderHistory, review: renderReview,
+    drafts: renderDrafts, settings: renderSettings,
   })[v];
   fn && fn();
 }

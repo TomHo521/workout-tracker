@@ -10,11 +10,13 @@
   <header>
     <h1>Workout Tracker</h1>
     <nav>
+      <button data-view="onboarding">Onboarding</button>
       <button data-view="profile">Profile</button>
       <button data-view="today">Today</button>
       <button data-view="pain">Pain</button>
       <button data-view="history">History</button>
       <button data-view="review">Review</button>
+      <button data-view="drafts">Drafts</button>
       <button data-view="settings">Settings</button>
     </nav>
     <div id="streak-badge" title="Current streak"></div>
@@ -181,6 +183,42 @@
       <p class="muted">Aggregates the last 7 days of sessions and pain entries and asks the coach for specific adjustments.</p>
       <button id="review-run" class="primary">Generate weekly review</button>
       <div id="review-result"></div>
+    </section>
+  </template>
+
+  <template id="tpl-onboarding">
+    <section class="card">
+      <h2>Onboarding</h2>
+      <p class="muted">Chat with the intake coach. It only gathers info — it won't prescribe exercises. Your live profile preview appears on the right.</p>
+      <div id="onb-toolbar" class="row">
+        <button id="onb-new" class="primary">Start new intake</button>
+        <span id="onb-session-info" class="muted"></span>
+      </div>
+    </section>
+    <section id="onb-body" class="onb-layout hidden">
+      <div class="card onb-chat">
+        <div id="onb-messages"></div>
+        <div id="onb-redflag" class="nudge hidden"></div>
+        <div class="onb-input">
+          <input id="onb-input" placeholder="type a reply…" />
+          <button id="onb-send" class="primary">Send</button>
+        </div>
+        <div id="onb-status" class="muted"></div>
+        <button id="onb-finalize" class="primary hidden">Finalize profile & propose program</button>
+      </div>
+      <aside class="card onb-preview">
+        <h3>Profile preview</h3>
+        <div id="onb-draft"></div>
+        <div id="onb-progress"></div>
+      </aside>
+    </section>
+  </template>
+
+  <template id="tpl-drafts">
+    <section class="card">
+      <h2>Program Drafts</h2>
+      <p class="muted">Each draft is a proposed program for your profile. Approve one to make it active; the Today view serves whichever draft is approved.</p>
+      <div id="drafts-list"></div>
     </section>
   </template>
 

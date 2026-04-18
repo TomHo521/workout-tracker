@@ -1,8 +1,9 @@
-"""Thin wrapper for local Ollama (llama3.1) suggestions."""
+"""Thin wrapper for local Ollama (llama3.1) suggestions + chat."""
 import json
 import httpx
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
 MODEL = "llama3.1:8b"
 
 SYSTEM = (
@@ -113,6 +114,33 @@ def generate_suggestions(profile: dict, session: dict, timeout: float = 120.0) -
     return _parse_json_or_fallback(text, {
         "summary": "", "next_session": [], "watchouts": [], "recovery": "",
     })
+
+
+def chat(system: str, messages: list[dict], timeout: float = 120.0,
+         temperature: float = 0.3, force_json: bool = False) -> tuple[str, str | None]:
+    """Multi-turn chat wrapper for /api/chat.
+
+    messages: [{"role":"user"|"assistant","content":"..."}]
+    Returns (content, error). error is None on success.
+    """
+    full_messages = [{"role": "system", "content": system}] + messages
+    payload = {
+        "model": MODEL,
+        "messages": full_messages,
+        "stream": False,
+        "options": {"temperature": temperature, "num_ctx": 4096},
+    }
+    if force_json:
+        payload["format"] = "json"
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            r = client.post(OLLAMA_CHAT_URL, json=payload)
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        return "", str(e)
+    content = ((data.get("message") or {}).get("content") or "").strip()
+    return content, None
 
 
 def generate_weekly_review(profile: dict, pain: list[dict], sessions: list[dict], timeout: float = 180.0) -> dict:
