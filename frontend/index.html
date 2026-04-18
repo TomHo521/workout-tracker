@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Workout Tracker</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Workout Tracker</h1>
+    <nav>
+      <button data-view="profile">Profile</button>
+      <button data-view="today">Today</button>
+      <button data-view="pain">Pain</button>
+      <button data-view="history">History</button>
+      <button data-view="review">Review</button>
+      <button data-view="settings">Settings</button>
+    </nav>
+    <div id="streak-badge" title="Current streak"></div>
+    <div id="profile-indicator"></div>
+  </header>
+
+  <main id="app"></main>
+
+  <!-- Disclaimer overlay -->
+  <div id="disclaimer" class="overlay hidden">
+    <div class="modal">
+      <h3>Before you start</h3>
+      <p>This app is <strong>not medical advice</strong>. It suggests training based on the profile you enter, but you are responsible for training safely. If you have pain, stop and consult a professional. AI suggestions may be wrong.</p>
+      <label><input type="checkbox" id="disclaimer-ack" /> I understand and accept.</label>
+      <button id="disclaimer-go" class="primary" disabled>Continue</button>
+    </div>
+  </div>
+
+  <!-- ============ TEMPLATES ============ -->
+
+  <template id="tpl-profile">
+    <section class="card">
+      <h2>Health Profile</h2>
+      <form id="profile-form">
+        <label>Name <input name="name" required /></label>
+        <div class="grid-2">
+          <label>Age <input name="age" type="number" min="10" max="100" /></label>
+          <label>Sex
+            <select name="sex">
+              <option value="">—</option>
+              <option value="male">male</option>
+              <option value="female">female</option>
+              <option value="other">other</option>
+            </select>
+          </label>
+          <label>Height (cm) <input name="height_cm" type="number" step="0.1" /></label>
+          <label>Weight (kg) <input name="weight_kg" type="number" step="0.1" /></label>
+          <label>Fitness level
+            <select name="fitness_level">
+              <option value="beginner">beginner</option>
+              <option value="intermediate">intermediate</option>
+              <option value="advanced">advanced</option>
+            </select>
+          </label>
+          <label>Goals
+            <select name="goals">
+              <option value="general_strength">general strength</option>
+              <option value="hypertrophy">hypertrophy</option>
+              <option value="fat_loss">fat loss</option>
+              <option value="endurance">endurance</option>
+            </select>
+          </label>
+        </div>
+        <label>Injuries (comma-separated tags: left_knee, right_knee, lower_back, left_shoulder, right_shoulder)
+          <input name="injuries" placeholder="e.g. left_knee, lower_back" />
+        </label>
+        <label>Health conditions (comma-separated)
+          <input name="conditions" placeholder="e.g. hypertension" />
+        </label>
+        <label>Available equipment (comma-separated: bodyweight, dumbbell, barbell, machine, cable)
+          <input name="equipment" value="bodyweight, dumbbell, barbell, machine, cable" />
+        </label>
+        <label>Notes <textarea name="notes" rows="2"></textarea></label>
+        <button type="submit" class="primary">Save profile</button>
+      </form>
+    </section>
+  </template>
+
+  <template id="tpl-today">
+    <section id="nudge-panel" class="card nudge hidden"></section>
+    <section class="card">
+      <h2>Today's Workout</h2>
+      <div class="row">
+        <label>Date <input id="today-date" type="date" /></label>
+        <label>Day
+          <select id="today-day"></select>
+        </label>
+      </div>
+      <div id="today-exercises"></div>
+      <div class="row">
+        <label>Perceived effort (1-10)
+          <input id="today-rpe" type="number" min="1" max="10" value="5" />
+        </label>
+      </div>
+      <label>Session notes <textarea id="today-notes" rows="2"></textarea></label>
+      <button id="today-save" class="primary">Save worksheet</button>
+      <div id="today-result"></div>
+    </section>
+  </template>
+
+  <template id="tpl-pain">
+    <section class="card">
+      <h2>Pain Log</h2>
+      <p class="muted">Log any discomfort (0 none → 10 severe). Influences progression and the AI coach.</p>
+      <div class="row">
+        <label>Date <input id="pain-date" type="date" /></label>
+        <label>Area
+          <select id="pain-area">
+            <option value="lower_back">lower_back</option>
+            <option value="upper_back">upper_back</option>
+            <option value="left_knee">left_knee</option>
+            <option value="right_knee">right_knee</option>
+            <option value="left_shoulder">left_shoulder</option>
+            <option value="right_shoulder">right_shoulder</option>
+            <option value="left_hip">left_hip</option>
+            <option value="right_hip">right_hip</option>
+            <option value="neck">neck</option>
+            <option value="left_wrist">left_wrist</option>
+            <option value="right_wrist">right_wrist</option>
+            <option value="left_elbow">left_elbow</option>
+            <option value="right_elbow">right_elbow</option>
+          </select>
+        </label>
+        <label>Score
+          <input id="pain-score" type="range" min="0" max="10" value="0" />
+          <span id="pain-score-val">0</span>
+        </label>
+      </div>
+      <label>Notes <input id="pain-notes" placeholder="e.g. dull ache on deadlift warmup" /></label>
+      <button id="pain-save" class="primary">Log pain</button>
+      <h3>Recent entries</h3>
+      <div id="pain-list"></div>
+    </section>
+  </template>
+
+  <template id="tpl-history">
+    <section class="card">
+      <h2>History</h2>
+      <div class="cal-nav">
+        <button id="cal-prev" type="button">‹</button>
+        <div id="cal-label"></div>
+        <button id="cal-next" type="button">›</button>
+        <button id="cal-today" type="button" class="cal-today-btn">Today</button>
+      </div>
+      <div class="cal-weekdays">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </section>
+
+    <section class="card">
+      <h2>Analytics</h2>
+      <h3>Weekly volume by muscle group (last 8 weeks)</h3>
+      <div id="chart-volume"></div>
+      <h3>Estimated 1RM by lift</h3>
+      <div id="chart-1rm"></div>
+    </section>
+
+    <section id="day-sessions" class="card hidden">
+      <h2 id="ds-title"></h2>
+      <div id="ds-list"></div>
+    </section>
+    <section id="session-detail" class="card hidden">
+      <h2 id="sd-title"></h2>
+      <div id="sd-body"></div>
+      <button id="sd-suggest" class="primary">Get AI suggestions</button>
+      <div id="sd-suggestions"></div>
+    </section>
+  </template>
+
+  <template id="tpl-review">
+    <section class="card">
+      <h2>Weekly AI Review</h2>
+      <p class="muted">Aggregates the last 7 days of sessions and pain entries and asks the coach for specific adjustments.</p>
+      <button id="review-run" class="primary">Generate weekly review</button>
+      <div id="review-result"></div>
+    </section>
+  </template>
+
+  <template id="tpl-settings">
+    <section class="card">
+      <h2>Settings</h2>
+      <h3>Data</h3>
+      <p><button id="export-btn" class="primary">Export all data (JSON)</button></p>
+      <p><button id="wipe-btn" class="danger">Wipe sessions + pain log</button></p>
+      <p class="muted">Wipe preserves your profile — removes training and pain history only.</p>
+      <h3>Privacy</h3>
+      <p class="muted">All data stored locally on this machine. LLM suggestions are generated by your local Ollama and never leave the device.</p>
+    </section>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>
